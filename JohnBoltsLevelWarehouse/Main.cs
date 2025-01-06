@@ -860,7 +860,7 @@ namespace JohnBoltsLevelWarehouse
 
             // Parse values
             string command = parts[0].Trim();
-            if (!int.TryParse(parts[1].Trim(), out int param1) || !int.TryParse(parts[2].Trim(), out int param2))
+            if (!float.TryParse(parts[1].Trim(), out float param1) || !float.TryParse(parts[2].Trim(), out float param2))
             {
                 MelonLogger.Error($"Invalid numeric values in line: {line}");
                 return;
@@ -881,7 +881,7 @@ namespace JohnBoltsLevelWarehouse
             }
         }
         // Example functions to handle commands
-        void HandleWin(int param1, int param2)
+        void HandleWin(float param1, float param2)
         {
             GameObject temp = GameObject.Find("Win");
             SceneManager.MoveGameObjectToScene(temp, SceneManager.GetActiveScene());
@@ -890,7 +890,7 @@ namespace JohnBoltsLevelWarehouse
         }
         
 
-        void HandleCheckpoint(int param1, int param2)
+        void HandleCheckpoint(float param1, float param2)
         {
             GameObject checkPoint = GameObject.Find("Checkpoint");
             GameObject cp = GameObject.Instantiate(checkPoint);
