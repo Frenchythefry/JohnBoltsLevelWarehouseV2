@@ -1,17 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using MelonLoader;
 using UnityEngine.Tilemaps;
 using UnityEngine.SceneManagement;
 using System.Reflection;
 using System.Collections;
+using System.IO;
+using System.IO.Compression;
 using UnityEngine.UI;
 using TMPro;
 using HarmonyLib;
 using System.Drawing;
-
+//For when assemblyinfo regens. You're welcome.
+//using MelonLoader;
+// using JohnBoltsLevelWarehouse;
+//[assembly: MelonInfo(typeof(JohnBoltsLevelWarehouse.Main), "John Bolt's Level Warehouse", "v2.0.1", "Frenchy")]
+// [assembly: MelonGame("Grouch", "Thunder Jumper")]
 namespace JohnBoltsLevelWarehouse
 {
     public class Main : MelonMod
@@ -42,7 +49,7 @@ namespace JohnBoltsLevelWarehouse
         private IEnumerator WaitAndDoSomething()
         {
             // Wait for 1 second
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(0.5f);
             SetAll(input);
             GameObject pd = GameObject.Find("Death Collider");
             PlayerDeath pds = pd.GetComponent<PlayerDeath>();
@@ -192,19 +199,27 @@ namespace JohnBoltsLevelWarehouse
         // Function that gets called with the text box input
         private void OnButtonClick(string userInput)
         {
-            input = userInput;
-            SetTilesInSet(userInput);
-            SetMetalTilesInSet(userInput);
-            SetDeathTilesInSet(userInput);
-            SetDeathMetalTilesInSet(userInput);
-            pallete = LoadPaletteFromFile(userInput);
-            width = int.Parse(LoadRules(userInput)[1]);
-            height = int.Parse(LoadRules(userInput)[2]);
+            string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "Levels", (userInput + ".tjl"));
+            if (dir.EndsWith(".tjl", StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.Log($"Extracting archive: {dir}");
+                dir = ExtractArchive(dir);
+                Debug.Log($"Archive extracted to: {dir}");
+            }
+            dir = dir.Trim('\"');
+            input = dir;
+            SetTilesInSet(dir);
+            SetMetalTilesInSet(dir);
+            SetDeathTilesInSet(dir);
+            SetDeathMetalTilesInSet(dir);
+            pallete = LoadPaletteFromFile(dir);
+            width = int.Parse(LoadRules(dir)[1]);
+            height = int.Parse(LoadRules(dir)[2]);
             StartLoadAndGetWin();
         }
         public List<string> LoadRules(string folderName)
         {
-            string modsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "Levels", folderName);
+            string modsFolder = folderName;
             string filePath = Path.Combine(modsFolder, "rules.txt");
             MelonLogger.Msg($"Loading file from path: {filePath}");
             List<string> lines = new List<string>();
@@ -237,11 +252,9 @@ namespace JohnBoltsLevelWarehouse
             field.SetValue(pds, pos);
         }
 
-        public List<string> LoadTilePosFile(string folderName)
+        public List<string> LoadTilePosFile(string path)
         {
-            // Define the path to the specified folder inside the mods folder
-            string modsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "Levels", folderName);
-            string filePath = Path.Combine(modsFolder, "tilepos.txt");
+            string filePath = Path.Combine(path, "tilepos.txt");
             MelonLogger.Msg($"Loading file from path: {filePath}");
             List<string> lines = new List<string>();
 
@@ -252,7 +265,7 @@ namespace JohnBoltsLevelWarehouse
                 {
                     // Read all lines from the file
                     lines = new List<string>(File.ReadAllLines(filePath));
-                    MelonLogger.Msg($"File 'tilepos.txt' loaded successfully from folder '{folderName}'.");
+                    MelonLogger.Msg($"File 'tilepos.txt' loaded successfully from folder '{path}'.");
                 }
                 catch (Exception ex)
                 {
@@ -261,7 +274,7 @@ namespace JohnBoltsLevelWarehouse
             }
             else
             {
-                MelonLogger.Warning($"File 'tilepos.txt' not found in folder '{folderName}' inside the mods directory.");
+                MelonLogger.Warning($"File 'tilepos.txt' not found in folder '{path}' inside the mods directory.");
             }
 
             return lines;
@@ -269,7 +282,7 @@ namespace JohnBoltsLevelWarehouse
         public List<string> LoadTilePosMetalFile(string folderName)
         {
             // Define the path to the specified folder inside the mods folder
-            string modsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "Levels", folderName);
+            string modsFolder = folderName;
             string filePath = Path.Combine(modsFolder, "tileposGrapple.txt");
             MelonLogger.Msg($"Loading file from path: {filePath}");
             List<string> lines = new List<string>();
@@ -298,7 +311,7 @@ namespace JohnBoltsLevelWarehouse
         public List<string> LoadTilePosDeathMetalFile(string folderName)
         {
             // Define the path to the specified folder inside the mods folder
-            string modsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "Levels", folderName);
+            string modsFolder = folderName;
             string filePath = Path.Combine(modsFolder, "tileposDeathGrapple.txt");
             MelonLogger.Msg($"Loading file from path: {filePath}");
             List<string> lines = new List<string>();
@@ -327,7 +340,7 @@ namespace JohnBoltsLevelWarehouse
         public List<string> LoadTilePosDeathFile(string folderName)
         {
             // Define the path to the specified folder inside the mods folder
-            string modsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "Levels", folderName);
+            string modsFolder = folderName;
             string filePath = Path.Combine(modsFolder, "tileposDeath.txt");
             MelonLogger.Msg($"Loading file from path: {filePath}");
             List<string> lines = new List<string>();
@@ -353,14 +366,20 @@ namespace JohnBoltsLevelWarehouse
 
             return lines;
         }
+        private int GetNumericPart(string filename)
+        {
+            // Extract numeric part from the filename
+            string numericPart = new string(filename.Where(char.IsDigit).ToArray());
+            return int.TryParse(numericPart, out int result) ? result : int.MaxValue; // Non-numeric names are sorted last
+        }
         public List<Tile> LoadPaletteFromFile(string folderName)
         {
             // Define the path to the Palette folder inside the specified folder in the mods directory
-            string modsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "Levels", folderName, "Palette");
+            string modsFolder = Path.Combine(folderName, "Palette");
 
             // Create a list to hold the tiles
             List<Tile> palette = new List<Tile>();
-
+            List<string> pName = new List<string>();
             Tile emptyTile = ScriptableObject.CreateInstance<Tile>();
             emptyTile.sprite = null; // No sprite for the empty tile
             palette.Add(emptyTile);
@@ -371,37 +390,43 @@ namespace JohnBoltsLevelWarehouse
                 // Get all image files in the folder (e.g., PNG, JPG)
                 string[] imageFiles = Directory.GetFiles(modsFolder, "*.*", SearchOption.TopDirectoryOnly);
 
+                // Filter and sort files by name
+                imageFiles = imageFiles
+                    .Where(filePath =>
+                        filePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                        filePath.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                        filePath.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(filePath => GetNumericPart(Path.GetFileNameWithoutExtension(filePath)))
+                    .ToArray();
+
+
                 foreach (string filePath in imageFiles)
                 {
-                    if (filePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || 
-                        filePath.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || 
-                        filePath.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+                    try
                     {
-                        try
-                        {
-                            MelonLogger.Msg($"Loading file: {filePath}");
-                            byte[] fileData = File.ReadAllBytes(filePath);
-                            Texture2D texture = new Texture2D(2, 2);
-                            texture.LoadImage(fileData); // Ensure the texture is populated
+                        MelonLogger.Msg($"Loading file: {filePath} to slot " + palette.Count);
+                        byte[] fileData = File.ReadAllBytes(filePath);
+                        Texture2D texture = new Texture2D(2, 2);
+                        texture.LoadImage(fileData); // Ensure the texture is populated
 
-                            MelonLogger.Msg($"Texture size: {texture.width}x{texture.height}");
-                            float pixelsPerUnit = 100f; // Use a constant or configurable value
+                        MelonLogger.Msg($"Texture size: {texture.width}x{texture.height}");
+                        float pixelsPerUnit = texture.width; // Use a constant or configurable value
 
-                            // Create a Sprite from the Texture2D
-                            Rect rect = new Rect(0, 0, texture.width, texture.height);
-                            Sprite sprite = Sprite.Create(texture, rect, new Vector2(0.5f, 0.5f), pixelsPerUnit);
+                        // Create a Sprite from the Texture2D
+                        Rect rect = new Rect(0, 0, texture.width, texture.height);
+                        Sprite sprite = Sprite.Create(texture, rect, new Vector2(0.5f, 0.5f), pixelsPerUnit);
 
-                            // Create a Tile from the Sprite
-                            Tile tile = ScriptableObject.CreateInstance<Tile>();
-                            tile.sprite = sprite;
+                        // Create a Tile from the Sprite
+                        Tile tile = ScriptableObject.CreateInstance<Tile>();
+                        tile.sprite = sprite; 
 
-                            // Add the tile to the palette list
-                            palette.Add(tile);
-                        }
-                        catch (Exception ex)
-                        {
-                            MelonLogger.Error($"Failed to load image file: {filePath}, Error: {ex.Message}");
-                        }
+                        // Add the tile to the palette list
+                        palette.Add(tile);
+                        pName.Add(filePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        MelonLogger.Error($"Failed to load image file: {filePath}, Error: {ex.Message}");
                     }
                 }
             }
@@ -410,6 +435,7 @@ namespace JohnBoltsLevelWarehouse
                 MelonLogger.Warning($"Palette folder '{modsFolder}' not found.");
             }
             MelonLogger.Msg(palette.Count);
+            MelonLogger.Msg(string.Join(",", pName));
             return palette;
         }
         public void SetMetalTilesInSet(string name)
@@ -525,7 +551,9 @@ namespace JohnBoltsLevelWarehouse
                 // Add the split list to the 2D list
                 fullTemp.Add(splitList);
             }
-
+            MelonLogger.Msg(string.Join("; ", fullTemp.Select(innerList => 
+                $"[{string.Join(", ", innerList)}]"
+            )));
             tiles = fullTemp;
         }
         public void ClearAllTilesManually(string name)
@@ -566,13 +594,18 @@ namespace JohnBoltsLevelWarehouse
             tileMap.RefreshAllTiles();
             MelonLogger.Msg("All tiles cleared manually and Tilemap refreshed.");
         }
-
+        private string FormatNestedList(List<List<int>> nestedList)
+        {
+            return string.Join("; ", nestedList.Select(innerList => 
+                $"[{string.Join(", ", innerList)}]"
+            ));
+        }
         public void SetAll(string userInput)
         {
             MelonLogger.Msg("SetAll method called.");
             SetStartPos(new Vector2(float.Parse(LoadRules(userInput)[3]), float.Parse(LoadRules(userInput)[4])));
             // Try to find the Tilemap GameObject
-            string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "Levels", userInput, "other.txt");
+            string filePath = Path.Combine(userInput, "other.txt");
             string[] lines = File.ReadAllLines(filePath);
             foreach (string line in lines)
             {
@@ -622,15 +655,17 @@ namespace JohnBoltsLevelWarehouse
                     {
                         if (tiles[i][j] != 0)
                         {
-                            tileMap.SetTile(new Vector3Int(j, i, 0), pallete[tiles[i][j]]);
-                            gct.SetTile(new Vector3Int(j, i, 0), gcc.groundTile);
+                            tileMap.SetTile(new Vector3Int(j - width / 2, height - i, 0), pallete[tiles[i][j]]);
+                            MelonLogger.Msg("tiles i j is " + tiles[i][j]);
+                            MelonLogger.Msg($"Placing tile {pallete[tiles[i][j]]} at position ({j}, {i})");
+                            gct.SetTile(new Vector3Int(j- width / 2, height - i, 0), gcc.groundTile);
                             GameObject temp = new GameObject();
                             temp.transform.parent = tileMap.transform;
                             temp.name = "Rubber";
                             temp.transform.localScale = new Vector3(0.5f, 1, 0.5f);
                             temp.tag = "Rubber";
                             temp.layer = 8;
-                            temp.transform.position = new Vector3Int(j, i, 0);
+                            temp.transform.position = new Vector3Int(j- width / 2, height - i, 0);
                         }
                     }
                     else
@@ -647,15 +682,15 @@ namespace JohnBoltsLevelWarehouse
                     {
                         if (tilesMetal[i][j] != 0)
                         {
-                            tileMap.SetTile(new Vector3Int(j, i, 0), pallete[tilesMetal[i][j]]);
-                            gctm.SetTile(new Vector3Int(j, i, 0), gccm.groundTile);
+                            tileMap.SetTile(new Vector3Int(j- width / 2, height - i, 0), pallete[tilesMetal[i][j]]);
+                            gctm.SetTile(new Vector3Int( j- width / 2,height -  i, 0), gccm.groundTile);
                             GameObject temp = new GameObject();
                             temp.transform.parent = tileMap.transform;
                             temp.name = "Metal";
                             temp.transform.localScale = new Vector3(0.5f, 1, 0.5f);
                             temp.tag = "Metal";
                             temp.layer = 8;
-                            temp.transform.position = new Vector3Int(j, i, 0);
+                            temp.transform.position = new Vector3Int(j- width / 2, height - i, 0);
                         }
                     }
                     else
@@ -672,7 +707,7 @@ namespace JohnBoltsLevelWarehouse
                     {
                         if (tilesDeath[i][j] != 0)
                         {
-                            tileMap.SetTile(new Vector3Int(j, i, 0), pallete[tilesDeath[i][j]]);
+                            tileMap.SetTile(new Vector3Int( j- width / 2,height -  i, 0), pallete[tilesDeath[i][j]]);
                             GameObject temp = new GameObject();
                             temp.transform.parent = tileMap.transform;
                             temp.name = "Death Rubber";
@@ -681,7 +716,7 @@ namespace JohnBoltsLevelWarehouse
                             temp.layer = 8;
                             BoxCollider2D box = temp.AddComponent<BoxCollider2D>();
                             box.offset = new Vector2(1f, 1f);
-                            temp.transform.position = new Vector3Int(j, i, 0);
+                            temp.transform.position = new Vector3Int(j- width / 2, height - i, 0);
                         }
                     }
                     else
@@ -698,7 +733,7 @@ namespace JohnBoltsLevelWarehouse
                     {
                         if (tilesDeathMetal[i][j] != 0)
                         {
-                            tileMap.SetTile(new Vector3Int(j, i, 0), pallete[tilesDeathMetal[i][j]]);
+                            tileMap.SetTile(new Vector3Int(j- width / 2, height - i, 0), pallete[tilesDeathMetal[i][j]]);
                             GameObject temp = new GameObject();
                             temp.transform.parent = tileMap.transform;
                             temp.name = "Death Metal";
@@ -707,7 +742,7 @@ namespace JohnBoltsLevelWarehouse
                             temp.layer = 8;
                             BoxCollider2D box = temp.AddComponent<BoxCollider2D>();
                             box.offset = new Vector2(1f, 1f);
-                            temp.transform.position = new Vector3Int(j, i, 0);
+                            temp.transform.position = new Vector3Int(j- width / 2, height - i, 0);
                         }
                     }
                     else
@@ -853,6 +888,7 @@ namespace JohnBoltsLevelWarehouse
             temp.transform.position = new Vector2(param1, param2);
             temp.SetActive(true);
         }
+        
 
         void HandleCheckpoint(int param1, int param2)
         {
@@ -860,6 +896,24 @@ namespace JohnBoltsLevelWarehouse
             GameObject cp = GameObject.Instantiate(checkPoint);
             cp.transform.position = new Vector2(param1, param2);
             cp.SetActive(true);
+        }
+        public string ExtractArchive(string archivePath)
+        {
+            string tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            Directory.CreateDirectory(tempDirectory);
+            string tempZipPath = Path.Combine(tempDirectory, "temp.zip");
+            File.Copy(archivePath, tempZipPath);
+            ZipFile.ExtractToDirectory(tempZipPath, tempDirectory);
+            string[] dirs = Directory.GetDirectories(tempDirectory);
+            return tempDirectory;
+        }
+        public void CleanupTemporaryDirectory(string tempDir)
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+                Debug.Log($"Temporary directory deleted: {tempDir}");
+            }
         }
         public void PrepMD()
         {
